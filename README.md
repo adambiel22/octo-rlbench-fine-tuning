@@ -153,6 +153,8 @@ source octo-venv/bin/activate
 pip install -e .
 pip install -r requirements.txt
 pip install --upgrade "jax[cuda12_pip]==0.4.20" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install tensorflow[and-cuda]
+pip install tensorflow==2.15.0
 ```
 
 5. Log in to WandB to track the training.
