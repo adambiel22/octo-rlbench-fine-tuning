@@ -164,3 +164,4 @@ cython_debug/
 rlbench-venv
 generated_datasets
 checkpoint
+octo-venv

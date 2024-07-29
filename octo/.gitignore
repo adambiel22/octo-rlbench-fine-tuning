@@ -173,3 +173,4 @@ fine_tuning_checkpointv2
 examples/checkpoint_rlbench_test
 examples/checkpoint_rlbench_full
 examples/checkpoint
+octo-venv

@@ -155,7 +155,9 @@ pip install -r requirements.txt
 pip install --upgrade "jax[cuda12_pip]==0.4.20" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
-5. Review the sbatch script `fine_tuning_job.sh`. For sbatch details refer to: [https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch](https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch). Especially specify correct `partition`, `qos` and paths.
+5. Log in to WandB to track the training.
+
+6. Check the `sbatch' script `fine_tuning_job.sh`. For `sbatch` details see [https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch](https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch). Make sure you specify the correct `partition', `qos' and all paths.
 ```bash
 #!/bin/bash
 #
@@ -174,10 +176,12 @@ python examples/02_finetune_new_observation_action_rl_bench.py \
   --batch_size=60
 ```
 
-6. Run sbatch script.
+7. Run sbatch script.
 ```bash
 sbatch fine_tuning_job.sh
 ```
+
+The training can take up to 90 minutes. For testing purposes you can reduce number of iterations at the bottom of `examples/02_finetune_new_observation_action_rl_bench.py` file.
 
 ## Step 4. Evaluate the model
 
@@ -189,14 +193,24 @@ source octo-venv/bin/activate
 pip install -e .
 pip install -r requirements.txt
 pip install --upgrade "jax==0.4.20"
+pip install --upgrade "jaxlib==0.4.20"
+pip install gymnasium
+
+export COPPELIASIM_ROOT=${HOME}/CoppeliaSim
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
+export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
+
+pip install -e ../RLBench/
 ```
 
-3. Copy checkpoint from entropy cluster. Eg.:
+3. Copy the checkpoint from the Entropy cluster. Eg.:
 ```bash
 scp -r entropy_username@entropy.mimuw.edu.pl:/home/entropy_username/octo-rlbench-fine-tuning/octo/checkpoint_rlbench .
 ```
 
-4. Run evaluation
+4. Log in to WandB to track the evaluation.
+
+5. Run evaluation
 ```bash
 python examples/03_eval_finetuned_rlbench.py --finetuned_path=checkpoint_rlbench
 ```
