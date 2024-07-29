@@ -12,14 +12,15 @@ from PIL import Image
 class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.0')
+    VERSION = tfds.core.Version('3.0.0')
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
+      '3.0.0': 'Observation with joint positions.',
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rlbench_generated_dataset_path = "../../generated_datasets/place_shape_in_shape_sorter"
+        self.rlbench_generated_dataset_path = "/home/adam/Documents/Projects/octo-rlbench-fine-tuning/RLBench/generated_ur5v6/place_shape_in_shape_sorter"
         self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
@@ -40,11 +41,10 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
                             encoding_format='png',
                             doc='Wrist camera RGB observation.',
                         ),
-                        'state': tfds.features.Tensor(
-                            shape=(7,),
+                        'joint_positions': tfds.features.Tensor(
+                            shape=(6,),
                             dtype=np.float32,
-                            doc='Robot state, consists of [6x robot joint angles, '
-                                '1 x gripper state].',
+                            doc='6x robot joint angles.',
                         )
                     }),
                     'action': tfds.features.Tensor(
@@ -119,13 +119,13 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
                 front_image = Image.open(front_image_path)
                 wrist_image = Image.open(wrist_image_path)
                 action = np.concatenate([step["joint_velocities"], [step["gripper_open"]]], axis=-1, dtype=np.float32)
-                state = np.concatenate([step["joint_positions"], [step["gripper_open"]]], axis=-1, dtype=np.float32)
+                joint_positions = np.array(step["joint_positions"], dtype=np.float32)
 
                 episode.append({
                     'observation': {
                         'image': np.array(front_image),
                         'wrist_image': np.array(wrist_image),
-                        'state': state,
+                        'joint_positions': joint_positions,
                     },
                     'action': action,
                     'discount': 1.0,
@@ -151,11 +151,9 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
         variations_paths = glob.glob(path + "/variation*")
 
         for variation in variations_paths:
-
             variation_descriptions_path = variation + "/variation_descriptions.pkl"
             with open(variation_descriptions_path, 'rb') as file:
                 variation_descriptions = pickle.load(file)
-
 
             for variation_description in variation_descriptions:
                 episodes_paths = glob.glob(variation + "/episodes/episode*")
@@ -163,8 +161,18 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
                     yield _parse_episode(episode_path, variation_description)
 
         # for large datasets use beam to parallelize data parsing (this will have initialization overhead)
+        # paths = []
+        # variations_paths = glob.glob(path + "/variation*")
+        # for variation in variations_paths:
+        #     variation_descriptions_path = variation + "/variation_descriptions.pkl"
+        #     with open(variation_descriptions_path, 'rb') as file:
+        #         variation_descriptions = pickle.load(file)
+        #     for variation_description in variation_descriptions:
+        #         episodes_paths = glob.glob(variation + "/episodes/episode*")
+        #         for episode_path in episodes_paths:
+        #             paths.append((episode_path, variation_description))
         # beam = tfds.core.lazy_imports.apache_beam
         # return (
-        #         beam.Create(episode_paths)
-        #         | beam.Map(_parse_example)
+        #         beam.Create(paths)
+        #         | beam.Map(_parse_episode)
         # )
