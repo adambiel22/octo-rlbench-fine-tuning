@@ -92,7 +92,7 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
     def _split_generators(self, dl_manager: tfds.download.DownloadManager):
         """Define data splits."""
         return {
-            'train': self._generate_examples(path=RLBENCH_GENERATED_DATASET_PATH),
+            'train': self._generate_examples(path=self.rlbench_generated_dataset_path),
             # 'val': self._generate_examples(path='data/val/episode_*.npy'),
         }
 

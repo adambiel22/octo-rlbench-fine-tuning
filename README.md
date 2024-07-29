@@ -13,8 +13,6 @@ python3 -m venv rlbench-venv
 source rlbench-venv/bin/activate
 ```
 
-TODO: check if it works with conda.
-
 2. Install CoppeliaSim
 
 ```bash
@@ -35,7 +33,7 @@ pip install -e RLBench
 pip install gymnasium
 ```
 
-4. Run [RLBench/rlbench/dataset_generator.py](RLBench/rlbench/dataset_generator.py) script :
+4. Run [RLBench/rlbench/dataset_generator.py](RLBench/rlbench/dataset_generator.py) script:
 ```bash
 python RLBench/rlbench/dataset_generator.py \
   --tasks place_shape_in_shape_sorter \
@@ -49,13 +47,14 @@ python RLBench/rlbench/dataset_generator.py \
   --arm_max_acceleration 4.0 \
   --robot_setup ur5
 ```
+It will take up to several dozen minutes. For testing purposes reduce `variations` and `episodes_per_task`
 
 To examine meaning of the arguments run:
 ```bash
 python RLBench/rlbench/dataset_generator.py --help
 ```
 
-It should create `generated_datasets/place_shape_in_shape_sorter` 
+It should create `generated_datasets/place_shape_in_shape_sorter`.
 
 
 ### Troubleshooting
@@ -76,7 +75,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
 ```
 
-Or add this line to the end of `rlbench-venv/bin/activate` script to export those environment variables every time you activate the rlbench-venv.
+Or add these lines to the end of `rlbench-venv/bin/activate` script to export those environment variables every time you activate the rlbench-venv.
 
 ## Step 2. Convert data to RLDS format
 
