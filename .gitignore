@@ -165,3 +165,5 @@ rlbench-venv
 generated_datasets
 checkpoint
 octo-venv
+.vscode
+wandb
