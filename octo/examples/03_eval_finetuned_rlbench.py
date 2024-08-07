@@ -13,7 +13,7 @@ If you are running this on a head-less server, start a virtual display:
 
 To run this script, run:
     cd examples
-    python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_aloha_checkpoint>
+    python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_octo_checkpoint>
 """
 from functools import partial
 import sys
@@ -25,9 +25,6 @@ import numpy as np
 import wandb
 import random
 
-sys.path.append("/home/adam/Documents/Projects/act")
-
-# keep this to register ALOHA sim env
 from envs.rl_bench_env import RLBenchEnvAdapter  # noqa
 
 from octo.model.octo_model import OctoModel
@@ -68,7 +65,7 @@ def main(_):
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
-    env = RHCWrapper(env, exec_horizon=4)
+    env = RHCWrapper(env, exec_horizon=35)
 
     # the supply_rng wrapper supplies a new random key to sample_actions every time it's called
     policy_fn = supply_rng(
@@ -89,7 +86,7 @@ def main(_):
 
         # run rollout for 400 steps
         # TODO: do we need to add the last index "[0]" ?
-        images = [obs["image_primary"][0]]
+        images = [info["frame"]]
         episode_return = 0.0
         while len(images) < 200:
             # model returns actions of shape [batch, pred_horizon, action_dim] -- remove batch
@@ -101,7 +98,7 @@ def main(_):
             # step env -- info contains full "chunk" of observations for logging
             # obs only contains observation for final step of chunk
             obs, reward, done, trunc, info = env.step(actions)
-            images.extend([o["image_primary"][0] for o in info["observations"]])
+            images.extend([o for o in info["frame"]])
             episode_return += reward
             if done or trunc:
                 break
@@ -109,7 +106,7 @@ def main(_):
 
         # log rollout video to wandb -- subsample temporally 2x for faster logging
         wandb.log(
-            {"rollout_video": wandb.Video(np.array(images).transpose(0, 3, 1, 2)[::2])}
+            {sampled_language_instruction: wandb.Video(np.array(images).transpose(0, 3, 1, 2)[::2])}
         )
 
 

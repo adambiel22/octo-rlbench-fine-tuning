@@ -112,6 +112,7 @@ class RLBenchEnv(gym.Env):
             # TODO: Write test for this
             reset_to_demo = options.get("reset_to_demo", None)
 
+        self.rlbench_task_env.sample_variation()
         if reset_to_demo is None:
             descriptions, obs = self.rlbench_task_env.reset()
         else:
