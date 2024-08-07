@@ -5,6 +5,7 @@ import dlimp as dl
 import gymnasium as gym
 import jax.numpy as jnp
 import numpy as np
+from PIL import Image
 
 from rlbench.gym import RLBenchEnv
 from rlbench.utils import name_to_task_class
@@ -31,6 +32,11 @@ class RLBenchEnvAdapter(gym.Env):
                     )
                     for i in ["primary", "wrist"]
                 },
+                "proprio": gym.spaces.Box(
+                        low=-np.infty * np.ones(6),
+                        high=np.infty * np.ones(6),
+                        dtype=np.float32,
+                    )
             }
         )
         self.action_space = self._env.action_space
@@ -45,7 +51,20 @@ class RLBenchEnvAdapter(gym.Env):
         if reward == 1.0:
             self._episode_is_success = 1
 
-        return obs, reward, terminated, False, {}
+        rendered_frame = self.render(obs)
+
+        return obs, reward, terminated, False, {"frame": rendered_frame}
+    
+    def render(self, obs = None):
+        rendered_frame = self._env.render()
+
+        if rendered_frame is not None:
+
+            wrist_img = Image.fromarray(obs["image_wrist"].numpy())
+            wrist_img = wrist_img.resize((360, 360), Image.Resampling.BILINEAR)
+            resized_wrist_img = np.array(wrist_img)
+
+            return np.concatenate([rendered_frame, resized_wrist_img], axis=1)
 
     def reset(self, **kwargs):
         obs, info = self._env.reset(**kwargs)
@@ -54,12 +73,15 @@ class RLBenchEnvAdapter(gym.Env):
         self._episode_is_success = 0
         self.language_instruction = info["text_descriptions"]
 
-        return obs, {}
+        rendered_frame = self.render(obs)
+
+        return obs, {"frame": rendered_frame}
 
     def _extract_obs(self, obs):
         curr_obs = {
             "image_primary": obs["front_rgb"],
-            "image_wrist": obs["wrist_rgb"]
+            "image_wrist": obs["wrist_rgb"],
+            "proprio": obs["joint_positions"]
         }
         curr_obs = dl.transforms.resize_images(
             curr_obs, match=curr_obs.keys(), size=(self._im_size, self._im_size)
@@ -84,6 +106,7 @@ gym.register(
     entry_point=lambda: RLBenchEnvAdapter(
         RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
                    observation_mode='vision',
+                   render_mode="rgb_array",
                    robot_setup="ur5",
                    headless=True,
                    action_mode=UR5ActionMode())
