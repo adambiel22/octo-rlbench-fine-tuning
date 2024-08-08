@@ -36,11 +36,20 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "finetuned_path", None, "Path to finetuned Octo checkpoint directory."
 )
-
+flags.DEFINE_integer(
+    "action_horizon", 50, "Action horizon."
+)
+flags.DEFINE_integer(
+    "rollouts", 3, "Number of evaluation rollouts."
+)
 
 def main(_):
+
+    eval_config = {flag_name: FLAGS[flag_name].value for flag_name in FLAGS}
+
     # setup wandb for logging
-    wandb.init(name="eval_rlbench", project="octo")
+    wandb.init(name="eval_rlbench", project="octo", config=eval_config)
+
 
     # load finetuned model
     logging.info("Loading finetuned model...")
@@ -65,7 +74,7 @@ def main(_):
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
-    env = RHCWrapper(env, exec_horizon=35)
+    env = RHCWrapper(env, exec_horizon=FLAGS.action_horizon)
 
     # the supply_rng wrapper supplies a new random key to sample_actions every time it's called
     policy_fn = supply_rng(
@@ -76,7 +85,7 @@ def main(_):
     )
 
     # running rollouts
-    for _ in range(3):
+    for _ in range(FLAGS.rollouts):
         obs, info = env.reset()
 
         # create task specification --> use model utility to create task dict with correct entries
