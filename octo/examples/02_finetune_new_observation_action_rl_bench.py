@@ -69,7 +69,7 @@ def main(_):
             name="rl_bench_dataset",
             data_dir=FLAGS.data_dir,
             image_obs_keys={"primary": "image", "wrist": "wrist_image"},
-            proprio_obs_key="state",
+            proprio_obs_key="joint_positions",
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
@@ -103,6 +103,15 @@ def main(_):
     # load pre-training config and modify
     # following Zhao et al. we use "action chunks" of length 50 and L1 loss 
     config = pretrained_model.config
+
+    config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
+        LowdimObsTokenizer,
+        n_bins=256,
+        bin_type="normal",
+        low=-4.0,
+        high=4.0,
+        obs_keys=["proprio"],
+    )
 
     # Fully override the old action head with a new one (for smaller changes, you can use update_config)
     config["model"]["heads"]["action"] = ModuleSpec.create(

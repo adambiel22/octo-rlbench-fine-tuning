@@ -167,3 +167,5 @@ checkpoint
 octo-venv
 .vscode
 wandb
+octo/octo-venv
+octo-venv-new
