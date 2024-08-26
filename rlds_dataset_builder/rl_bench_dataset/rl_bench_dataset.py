@@ -12,14 +12,16 @@ from PIL import Image
 class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.0')
+    VERSION = tfds.core.Version('4.0.0')
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
+      '3.0.0': 'Observation with joint positions.',
+      '4.0.0': 'Pick and lift task'
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rlbench_generated_dataset_path = "../../generated_datasets/place_shape_in_shape_sorter"
+        self.rlbench_generated_dataset_path = "../../generated_datasets/pick_and_lift"
         self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
@@ -156,11 +158,14 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
             with open(variation_descriptions_path, 'rb') as file:
                 variation_descriptions = pickle.load(file)
 
+            variation_description_index = 0 
 
-            for variation_description in variation_descriptions:
-                episodes_paths = glob.glob(variation + "/episodes/episode*")
-                for episode_path in episodes_paths:
-                    yield _parse_episode(episode_path, variation_description)
+            episodes_paths = glob.glob(variation + "/episodes/episode*")
+            for episode_path in episodes_paths:
+                yield _parse_episode(episode_path, variation_descriptions[variation_description_index])
+                variation_description_index = (variation_description_index + 1) % len(variation_descriptions)
+
+
 
         # for large datasets use beam to parallelize data parsing (this will have initialization overhead)
         # beam = tfds.core.lazy_imports.apache_beam

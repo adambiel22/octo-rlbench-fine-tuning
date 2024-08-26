@@ -15,6 +15,7 @@ To run this script, run:
     cd examples
     python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_octo_checkpoint>
 """
+
 from functools import partial
 import sys
 
@@ -24,6 +25,8 @@ import jax
 import numpy as np
 import wandb
 import random
+
+import wandb.plot
 
 from envs.rl_bench_env import RLBenchEnvAdapter  # noqa
 
@@ -36,11 +39,16 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "finetuned_path", None, "Path to finetuned Octo checkpoint directory."
 )
+flags.DEFINE_integer("action_horizon", 50, "Action horizon.")
+flags.DEFINE_integer("rollouts", 3, "Number of evaluation rollouts.")
 
 
 def main(_):
+
+    eval_config = {flag_name: FLAGS[flag_name].value for flag_name in FLAGS}
+
     # setup wandb for logging
-    wandb.init(name="eval_rlbench", project="octo")
+    wandb.init(name="eval_rlbench", project="octo", config=eval_config)
 
     # load finetuned model
     logging.info("Loading finetuned model...")
@@ -60,12 +68,14 @@ def main(_):
     #     }
     #   }
     ##################################################################################################################
-    env = gym.make("place_shape_in_shape_sorter-vision-v0")
-
+    if "proprio" in model.config["model"]["observation_tokenizers"]:
+        env = gym.make("place_shape_in_shape_sorter-vision-v0-proprio")
+    else:
+        env = gym.make("place_shape_in_shape_sorter-vision-v0")
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
-    env = RHCWrapper(env, exec_horizon=35)
+    env = RHCWrapper(env, exec_horizon=FLAGS.action_horizon)
 
     # the supply_rng wrapper supplies a new random key to sample_actions every time it's called
     policy_fn = supply_rng(
@@ -76,7 +86,8 @@ def main(_):
     )
 
     # running rollouts
-    for _ in range(3):
+    actions_made = []
+    for _ in range(FLAGS.rollouts):
         obs, info = env.reset()
 
         # create task specification --> use model utility to create task dict with correct entries
@@ -84,14 +95,14 @@ def main(_):
         sampled_language_instruction = random.choice(language_instructions[0])
         task = model.create_tasks(texts=[sampled_language_instruction])
 
-        # run rollout for 400 steps
-        # TODO: do we need to add the last index "[0]" ?
         images = [info["frame"]]
         episode_return = 0.0
+
         while len(images) < 200:
             # model returns actions of shape [batch, pred_horizon, action_dim] -- remove batch
             actions = policy_fn(jax.tree_map(lambda x: x[None], obs), task)
             actions = actions[0]
+            actions_made.append(actions[: FLAGS.action_horizon])
 
             print(len(images), "Action", actions)
 
@@ -106,8 +117,24 @@ def main(_):
 
         # log rollout video to wandb -- subsample temporally 2x for faster logging
         wandb.log(
-            {sampled_language_instruction: wandb.Video(np.array(images).transpose(0, 3, 1, 2)[::2])}
+            {
+                sampled_language_instruction: wandb.Video(
+                    np.array(images).transpose(0, 3, 1, 2)[::2]
+                )
+            }
         )
+
+    actions_made = np.concatenate(actions_made, axis=0)
+
+    actions_mean = actions_made.mean(axis=0)
+    actions_std = actions_made.std(axis=0)
+    actions_min = actions_made.min(axis=0)
+    actions_max = actions_made.max(axis=0)
+
+    print("action_mean", actions_mean)
+    print("action_std", actions_std)
+    print("actions_min", actions_min)
+    print("actions_max", actions_max)
 
 
 if __name__ == "__main__":
