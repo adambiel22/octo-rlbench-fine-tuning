@@ -21,7 +21,7 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rlbench_generated_dataset_path = "/home/adam/Documents/Projects/octo-rlbench-fine-tuning/generated_datasets/pick_and_lift"
+        self.rlbench_generated_dataset_path = "../../generated_datasets/pick_and_lift"
         self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
