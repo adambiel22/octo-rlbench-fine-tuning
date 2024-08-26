@@ -28,6 +28,8 @@ class RLBenchEnv(gym.Env):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
         obs_config = ObservationConfig()
+        obs_config.front_camera.image_size = (256, 256)
+        obs_config.wrist_camera.image_size = (256, 256)
         if observation_mode == 'state':
             obs_config.set_all_high_dim(False)
             obs_config.set_all_low_dim(True)
