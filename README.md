@@ -190,8 +190,8 @@ The training can take up to 90 minutes. For testing purposes you can reduce numb
 1. Navigate to `octo-rlbench-fine-tuning/octo` directory in your local machine.
 2. Create python virtual environment.
 ```bash
-python3 -m venv octo-venv
-source octo-venv/bin/activate
+python3 -m venv octo-venv-eval
+source octo-venv-eval/bin/activate
 pip install -e .
 pip install -r requirements.txt
 pip install --upgrade "jax==0.4.20"
