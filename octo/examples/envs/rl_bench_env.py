@@ -37,8 +37,8 @@ class RLBenchEnvAdapter(gym.Env):
             }
         if proprio:
             observation_space_dict["proprio"] = gym.spaces.Box(
-                        low=-np.infty * np.ones(6),
-                        high=np.infty * np.ones(6),
+                        low=-np.infty * np.ones(7),
+                        high=np.infty * np.ones(7),
                         dtype=np.float32,
                     )
 
@@ -71,6 +71,11 @@ class RLBenchEnvAdapter(gym.Env):
             return np.concatenate([rendered_frame, resized_wrist_img], axis=1)
 
     def reset(self, **kwargs):
+        if kwargs["options"]["variation"] == -1:
+            self._env.rlbench_task_env.sample_variation()
+        else:
+            self._env.rlbench_task_env.set_variation(kwargs["options"]["variation"])
+
         obs, info = self._env.reset(**kwargs)
 
         obs = self._extract_obs(obs)
@@ -88,7 +93,7 @@ class RLBenchEnvAdapter(gym.Env):
         }
 
         if self.proprio:
-            curr_obs["proprio"] = obs["joint_positions"]
+            curr_obs["proprio"] = np.concatenate([obs["joint_positions"], obs["gripper_open"]])
 
         curr_obs = dl.transforms.resize_images(
             curr_obs, match=curr_obs.keys(), size=(self._im_size, self._im_size)
@@ -123,6 +128,32 @@ gym.register(
 
 gym.register(
     "place_shape_in_shape_sorter-vision-v0",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=False
+    ),
+)
+
+gym.register(
+    "pick_and_lift-vision-v0-proprio",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("pick_and_lift"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=True
+    ),
+)
+
+gym.register(
+    "pick_and_lift-vision-v0",
     entry_point=lambda: RLBenchEnvAdapter(
         RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
                    observation_mode='vision',

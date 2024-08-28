@@ -41,6 +41,17 @@ flags.DEFINE_string(
 )
 flags.DEFINE_integer("action_horizon", 50, "Action horizon.")
 flags.DEFINE_integer("rollouts", 3, "Number of evaluation rollouts.")
+flags.DEFINE_enum(
+    "task",
+    "place_shape_in_shape_sorter",
+    help="Type of a task.",
+    enum_values=["place_shape_in_shape_sorter", "pick_and_lift"],
+)
+flags.DEFINE_integer(
+    "variation",
+    -1,
+    help="Variation number. A value of -1 means that the variation is randomly sampled at each simulation reset. Variation numbers start from 0.",
+)
 
 
 def main(_):
@@ -69,9 +80,9 @@ def main(_):
     #   }
     ##################################################################################################################
     if "proprio" in model.config["model"]["observation_tokenizers"]:
-        env = gym.make("place_shape_in_shape_sorter-vision-v0-proprio")
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0-proprio")
     else:
-        env = gym.make("place_shape_in_shape_sorter-vision-v0")
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0")
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
@@ -88,7 +99,7 @@ def main(_):
     # running rollouts
     actions_made = []
     for _ in range(FLAGS.rollouts):
-        obs, info = env.reset()
+        obs, info = env.reset(options={"variation": FLAGS["variation"].value})
 
         # create task specification --> use model utility to create task dict with correct entries
         language_instructions = env.get_task()["language_instruction"]
