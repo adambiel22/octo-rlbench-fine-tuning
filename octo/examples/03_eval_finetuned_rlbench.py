@@ -22,6 +22,7 @@ import sys
 from absl import app, flags, logging
 import gymnasium as gym
 import jax
+from matplotlib import pyplot as plt
 import numpy as np
 import wandb
 import random
@@ -137,15 +138,26 @@ def main(_):
 
     actions_made = np.concatenate(actions_made, axis=0)
 
-    actions_mean = actions_made.mean(axis=0)
-    actions_std = actions_made.std(axis=0)
-    actions_min = actions_made.min(axis=0)
-    actions_max = actions_made.max(axis=0)
+    def vis_stats(vector, tag):
+        assert len(vector.shape) == 2
 
-    print("action_mean", actions_mean)
-    print("action_std", actions_std)
-    print("actions_min", actions_min)
-    print("actions_max", actions_max)
+        vector_mean = vector.mean(0)
+        vector_std = vector.std(0)
+        vector_min = vector.min(0)
+        vector_max = vector.max(0)
+
+        n_elems = vector.shape[1]
+        fig = plt.figure(tag, figsize=(5 * n_elems, 10))
+        for elem in range(n_elems):
+            plt.subplot(1, n_elems, elem + 1)
+            plt.hist(vector[:, elem], bins=20)
+            plt.title(
+                f"mean={vector_mean[elem]}\nstd={vector_std[elem]}\nmin={vector_min[elem]}\nmax={vector_max[elem]}",
+            )
+
+        wandb.log({tag: wandb.Image(fig)})
+
+    vis_stats(actions_made, "action_stats")
 
 
 if __name__ == "__main__":
