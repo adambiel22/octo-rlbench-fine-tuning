@@ -1,3 +1,6 @@
 [submodule "RLBench"]
 	path = RLBench
 	url = git@github.com:stepjam/RLBench.git
+[submodule "rlbench_dataset_builder"]
+	path = rlbench_dataset_builder
+	url = git@github.com:mateuszwyszynski/rlbench_dataset_builder.git
