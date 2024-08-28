@@ -109,8 +109,8 @@ def main(_):
         LowdimObsTokenizer,
         n_bins=256,
         bin_type="normal",
-        low=-5.5,
-        high=5.5,
+        low=-2.0,
+        high=2.0,
         obs_keys=["proprio"],
     )
     # Fully override the old action head with a new one (for smaller changes, you can use update_config)
