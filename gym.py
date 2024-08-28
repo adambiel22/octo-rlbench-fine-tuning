@@ -1,6 +1,5 @@
 from typing import Union
 
-import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from pyrep.objects.dummy import Dummy
@@ -10,14 +9,11 @@ from pyrep.const import RenderMode
 
 from rlbench.action_modes.action_mode import JointPositionActionMode
 from rlbench.environment import Environment
+from rlbench.gym import RLBenchEnv
 from rlbench.observation_config import ObservationConfig
 
-def convert_dtype_to_float32_if_float(dtype):
-    if issubclass(dtype.type, np.floating):
-        return np.float32
-    return dtype
 
-class RLBenchEnv(gym.Env):
+class RLBenchUR5Env(RLBenchEnv):
     """An gym wrapper for RLBench."""
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
@@ -98,33 +94,3 @@ class RLBenchEnv(gym.Env):
                 "front_rgb": rlbench_obs.front_rgb,
             })
         return gym_obs
-
-    def render(self):
-        if self.render_mode == 'rgb_array':
-            frame = self.gym_cam.capture_rgb()
-            frame = np.clip((frame * 255.).astype(np.uint8), 0, 255)
-            return frame
-
-    def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
-        # TODO: Remove this and use seed from super()
-        np.random.seed(seed=seed)
-        reset_to_demo = None
-        if options is not None:
-            # TODO: Write test for this
-            reset_to_demo = options.get("reset_to_demo", None)
-
-        if reset_to_demo is None:
-            descriptions, obs = self.rlbench_task_env.reset()
-        else:
-            descriptions, obs = self.rlbench_task_env.reset(reset_to_demo=reset_to_demo)
-        return self._extract_obs(obs), {"text_descriptions": descriptions}
-
-    def step(self, action):
-        obs, reward, terminated = self.rlbench_task_env.step(action)
-        return self._extract_obs(obs), reward, terminated, False, {}
-
-    def close(self) -> None:
-        self.rlbench_env.shutdown()
-        
-

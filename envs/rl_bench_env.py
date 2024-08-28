@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 from PIL import Image
 
-from gym import RLBenchEnv
+from gym import RLBenchUR5Env
 from rlbench.utils import name_to_task_class
 from rlbench.action_modes.action_mode import MoveArmThenGripper
 from rlbench.action_modes.arm_action_modes import JointVelocity
@@ -27,7 +27,7 @@ class UR5ActionMode(MoveArmThenGripper):
 class RLBenchEnvAdapter(gym.Env):
     def __init__(
         self,
-        rl_bench_env: RLBenchEnv,
+        rl_bench_env: RLBenchUR5Env,
         im_size: int = 256,
         proprio: bool = True,
         seed: int = 1234,
@@ -126,7 +126,7 @@ class RLBenchEnvAdapter(gym.Env):
 gym.register(
     "place_shape_in_shape_sorter-vision-v0-proprio",
     entry_point=lambda: RLBenchEnvAdapter(
-        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+        RLBenchUR5Env(task_class=name_to_task_class("place_shape_in_shape_sorter"),
                    observation_mode='vision',
                    render_mode="rgb_array",
                    robot_setup="ur5",
@@ -139,7 +139,7 @@ gym.register(
 gym.register(
     "place_shape_in_shape_sorter-vision-v0",
     entry_point=lambda: RLBenchEnvAdapter(
-        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+        RLBenchUR5Env(task_class=name_to_task_class("place_shape_in_shape_sorter"),
                    observation_mode='vision',
                    render_mode="rgb_array",
                    robot_setup="ur5",
@@ -152,7 +152,7 @@ gym.register(
 gym.register(
     "pick_and_lift-vision-v0-proprio",
     entry_point=lambda: RLBenchEnvAdapter(
-        RLBenchEnv(task_class=name_to_task_class("pick_and_lift"),
+        RLBenchUR5Env(task_class=name_to_task_class("pick_and_lift"),
                    observation_mode='vision',
                    render_mode="rgb_array",
                    robot_setup="ur5",
@@ -165,7 +165,7 @@ gym.register(
 gym.register(
     "pick_and_lift-vision-v0",
     entry_point=lambda: RLBenchEnvAdapter(
-        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+        RLBenchUR5Env(task_class=name_to_task_class("place_shape_in_shape_sorter"),
                    observation_mode='vision',
                    render_mode="rgb_array",
                    robot_setup="ur5",
