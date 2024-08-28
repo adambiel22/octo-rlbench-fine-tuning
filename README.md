@@ -12,96 +12,52 @@ You can run `git submodule update --init --recursive` to get the most recent ver
 Follow the instructions there to generate the data in RLDS format.
 
 
-## Step 2. Train the model
+## Step 2. Setup the Environment
 
-1. Copy the dataset in RLDS format to the entropy cluster. Eg.:
+In a virtual environment:
 
-```bash
-scp -r ~/tensorflow_datasets/rl_bench_dataset entropy_username@entropy.mimuw.edu.pl:/home/entropy_username/tensorflow_datasets
-```
-
-2. Login to entropy. Eg.:
+1. Install octo and necessary dependencies:
 
 ```bash
-ssh entropy_username@entropy.mimuw.edu.pl
-```
-
-3. Clone or copy the repository.
-
-```bash
-git clone git@github.com:adambiel22/octo-rlbench-fine-tuning.git
-cd octo-rlbench-fine-tuning
-```
-
-4. Create python virtual environment.
-
-```bash
-cd octo
-python3 -m venv octo-venv
-source octo-venv/bin/activate
-pip install -e .
-pip install -r requirements.txt
+pip install -e octo
+pip install -r octo/requirements.txt
 pip install --upgrade "jax[cuda12_pip]==0.4.20" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 pip install tensorflow[and-cuda]
 pip install tensorflow==2.15.0
-```
-
-5. Log in to WandB to track the training.
-
-6. Check the `sbatch' script `fine_tuning_job.sh`. For `sbatch` details see [https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch](https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch). Make sure you specify the correct `partition', `qos' and all paths.
-```bash
-#!/bin/bash
-#
-#SBATCH --job-name=fine_tune_octo
-#SBATCH --partition=a6000
-#SBATCH --qos=2gpu3d
-#SBATCH --gres=gpu:1
-#SBATCH --time=3:00:00
-#SBATCH --output=fine_tune_octo.txt
-
-# full fine-tuning rlbench
-python examples/02_finetune_new_observation_action_rl_bench.py \
-  --pretrained_path=hf://rail-berkeley/octo-base-1.5 \
-  --data_dir=~/tensorflow_datasets \
-  --save_dir=~/octo-rlbench-fine-tuning/octo/checkpoint_rlbench \
-  --batch_size=60
-```
-
-7. Run sbatch script.
-```bash
-sbatch fine_tuning_job.sh
-```
-
-The training can take up to 90 minutes. For testing purposes you can reduce number of iterations at the bottom of `examples/02_finetune_new_observation_action_rl_bench.py` file.
-
-## Step 3. Evaluate the model
-
-1. Navigate to `octo-rlbench-fine-tuning/octo` directory in your local machine.
-2. Create python virtual environment.
-```bash
-python3 -m venv octo-venv-eval
-source octo-venv-eval/bin/activate
-pip install -e .
-pip install -r requirements.txt
-pip install --upgrade "jax==0.4.20"
-pip install --upgrade "jaxlib==0.4.20"
 pip install gymnasium
+```
 
+2. Install [RLBench](https://github.com/stepjam/RLBench?tab=readme-ov-file#install)
+
+Notes:
+
+ - You can add the following snippet at the end of the `/bin/activate` script to automatically export necessary variables everytime you activate the environment.
+
+```bash
+# set env variables
 export COPPELIASIM_ROOT=${HOME}/CoppeliaSim
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$COPPELIASIM_ROOT
 export QT_QPA_PLATFORM_PLUGIN_PATH=$COPPELIASIM_ROOT
-
-pip install -e ../RLBench/
 ```
 
-3. Copy the checkpoint from the Entropy cluster. Eg.:
+## Training
+
+Training is performed using `finetune_rl_bench.py` script.
+Example usage:
+
 ```bash
-scp -r entropy_username@entropy.mimuw.edu.pl:/home/entropy_username/octo-rlbench-fine-tuning/octo/checkpoint_rlbench .
+python3 finetune_rl_bench.py \
+  --pretrained_path=hf://rail-berkeley/octo-base-1.5 \
+  --data_dir=</absolute/path/to/tensorflow_datasets> \
+  --save_dir=</aboslut/path/where/the/checkpoints/will/be/saved> \
+  --batch_size=2
 ```
 
-4. Log in to WandB to track the evaluation.
+## Evaluation
 
-5. Run evaluation
+You can evaluate the model with the `evaluate_rl_bench.py` script.
+Example usage:
+
 ```bash
-python examples/03_eval_finetuned_rlbench.py --finetuned_path=checkpoint_rlbench
+python evaluate_rl_bench.py --finetuned_path=<path/to/the/checkpoint>
 ```
