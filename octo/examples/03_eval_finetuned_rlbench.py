@@ -22,6 +22,7 @@ import sys
 from absl import app, flags, logging
 import gymnasium as gym
 import jax
+from matplotlib import pyplot as plt
 import numpy as np
 import wandb
 import random
@@ -41,6 +42,17 @@ flags.DEFINE_string(
 )
 flags.DEFINE_integer("action_horizon", 50, "Action horizon.")
 flags.DEFINE_integer("rollouts", 3, "Number of evaluation rollouts.")
+flags.DEFINE_enum(
+    "task",
+    "place_shape_in_shape_sorter",
+    help="Type of a task.",
+    enum_values=["place_shape_in_shape_sorter", "pick_and_lift"],
+)
+flags.DEFINE_integer(
+    "variation",
+    -1,
+    help="Variation number. A value of -1 means that the variation is randomly sampled at each simulation reset. Variation numbers start from 0.",
+)
 
 
 def main(_):
@@ -69,9 +81,9 @@ def main(_):
     #   }
     ##################################################################################################################
     if "proprio" in model.config["model"]["observation_tokenizers"]:
-        env = gym.make("place_shape_in_shape_sorter-vision-v0-proprio")
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0-proprio")
     else:
-        env = gym.make("place_shape_in_shape_sorter-vision-v0")
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0")
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
@@ -88,7 +100,7 @@ def main(_):
     # running rollouts
     actions_made = []
     for _ in range(FLAGS.rollouts):
-        obs, info = env.reset()
+        obs, info = env.reset(options={"variation": FLAGS["variation"].value})
 
         # create task specification --> use model utility to create task dict with correct entries
         language_instructions = env.get_task()["language_instruction"]
@@ -126,15 +138,26 @@ def main(_):
 
     actions_made = np.concatenate(actions_made, axis=0)
 
-    actions_mean = actions_made.mean(axis=0)
-    actions_std = actions_made.std(axis=0)
-    actions_min = actions_made.min(axis=0)
-    actions_max = actions_made.max(axis=0)
+    def vis_stats(vector, tag):
+        assert len(vector.shape) == 2
 
-    print("action_mean", actions_mean)
-    print("action_std", actions_std)
-    print("actions_min", actions_min)
-    print("actions_max", actions_max)
+        vector_mean = vector.mean(0)
+        vector_std = vector.std(0)
+        vector_min = vector.min(0)
+        vector_max = vector.max(0)
+
+        n_elems = vector.shape[1]
+        fig = plt.figure(tag, figsize=(5 * n_elems, 10))
+        for elem in range(n_elems):
+            plt.subplot(1, n_elems, elem + 1)
+            plt.hist(vector[:, elem], bins=20)
+            plt.title(
+                f"mean={vector_mean[elem]}\nstd={vector_std[elem]}\nmin={vector_min[elem]}\nmax={vector_max[elem]}",
+            )
+
+        wandb.log({tag: wandb.Image(fig)})
+
+    vis_stats(actions_made, "action_stats")
 
 
 if __name__ == "__main__":
