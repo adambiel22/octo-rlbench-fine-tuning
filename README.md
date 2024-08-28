@@ -159,7 +159,7 @@ pip install tensorflow==2.15.0
 
 5. Log in to WandB to track the training.
 
-6. Check the `sbatch' script `fine_tuning_job.sh`. For `sbatch` details see [https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch](https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch). Make sure you specify the correct `partition', `qos' and all paths.
+6. Check the `sbatch` script `fine_tuning_job.sh`. For `sbatch` details see [https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch](https://entropy-doc.mimuw.edu.pl/submittingjobs.html#using-sbatch). Make sure you specify the correct `partition`, `qos` and all paths.
 ```bash
 #!/bin/bash
 #
