@@ -108,8 +108,8 @@ def main(_):
         LowdimObsTokenizer,
         n_bins=256,
         bin_type="normal",
-        low=-4.0,
-        high=4.0,
+        low=-5.5,
+        high=5.5,
         obs_keys=["proprio"],
     )
 
