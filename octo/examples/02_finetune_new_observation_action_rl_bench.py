@@ -69,7 +69,7 @@ def main(_):
             name="rl_bench_dataset",
             data_dir=FLAGS.data_dir,
             image_obs_keys={"primary": "image", "wrist": "wrist_image"},
-            proprio_obs_key="joint_positions",
+            proprio_obs_key="proprio",
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
