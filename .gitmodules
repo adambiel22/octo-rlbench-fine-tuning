@@ -4,3 +4,6 @@
 [submodule "rlbench_dataset_builder"]
 	path = rlbench_dataset_builder
 	url = git@github.com:mateuszwyszynski/rlbench_dataset_builder.git
+[submodule "octo"]
+	path = octo
+	url = git@github.com:mateuszwyszynski/octo.git
