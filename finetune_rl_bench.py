@@ -53,7 +53,7 @@ def main(_):
     tf.config.set_visible_devices([], "GPU")
 
     # setup wandb for logging
-    wandb.init(name="finetune_aloha", project="octo")
+    wandb.init(name="finetune_rlbench", project="octo")
 
     # load pre-trained model
     logging.info("Loading pre-trained model...")
@@ -66,10 +66,10 @@ def main(_):
     logging.info("Loading finetuning dataset...")
     dataset = make_single_dataset(
         dataset_kwargs=dict(
-            name="aloha_sim_cube_scripted_dataset",
+            name="rl_bench_dataset",
             data_dir=FLAGS.data_dir,
-            image_obs_keys={"primary": "top"},
-            proprio_obs_key="state",
+            image_obs_keys={"primary": "image", "wrist": "wrist_image"},
+            proprio_obs_key="proprio",
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
@@ -77,7 +77,7 @@ def main(_):
             action_horizon=50,
         ),
         frame_transform_kwargs=dict(
-            resize_size={"primary": (256, 256)},
+            resize_size={"primary": (256, 256), "wrist": (256, 256)},
         ),
         train=True,
     )
@@ -100,24 +100,24 @@ def main(_):
     train_data_iter = map(process_batch, train_data_iter)
     example_batch = next(train_data_iter)
 
-    # load pre-training config and modify --> remove wrist cam, add proprio input, change action head
-    # following Zhao et al. we use "action chunks" of length 50 and L1 loss for ALOHA
+    # load pre-training config and modify
+    # following Zhao et al. we use "action chunks" of length 50 and L1 loss
     config = pretrained_model.config
-    del config["model"]["observation_tokenizers"]["wrist"]
-    ###
+
     config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
         LowdimObsTokenizer,
         n_bins=256,
         bin_type="normal",
-        low=-2.0,
-        high=2.0,
+        low=-5.5,
+        high=5.5,
         obs_keys=["proprio"],
     )
+
     # Fully override the old action head with a new one (for smaller changes, you can use update_config)
     config["model"]["heads"]["action"] = ModuleSpec.create(
         L1ActionHead,
         action_horizon=50,
-        action_dim=14,
+        action_dim=7,
         readout_key="readout_action",
     )
 
