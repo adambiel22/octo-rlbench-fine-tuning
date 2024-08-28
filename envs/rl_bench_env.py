@@ -5,93 +5,115 @@ import dlimp as dl
 import gymnasium as gym
 import jax.numpy as jnp
 import numpy as np
+from PIL import Image
 
-# need to put https://github.com/tonyzhaozh/act in your PATH for this import to work
-from sim_env import BOX_POSE, make_sim_env
+from gym import RLBenchEnv
+from rlbench.utils import name_to_task_class
+from rlbench.action_modes.action_mode import MoveArmThenGripper
+from rlbench.action_modes.arm_action_modes import JointVelocity
+from rlbench.action_modes.gripper_action_modes import Discrete
 
 
-class AlohaGymEnv(gym.Env):
+class UR5ActionMode(MoveArmThenGripper):
+    def __init__(self):
+        super(UR5ActionMode, self).__init__(
+            JointVelocity(), Discrete())
+
+    def action_bounds(self):
+        """Returns the min and max of the action mode."""
+        return np.array(6 * [-1] + [0.0]), np.array(6 * [1] + [1.0])
+
+
+class RLBenchEnvAdapter(gym.Env):
     def __init__(
         self,
-        env: gym.Env,
-        camera_names: List[str],
+        rl_bench_env: RLBenchEnv,
         im_size: int = 256,
+        proprio: bool = True,
         seed: int = 1234,
     ):
-        self._env = env
-        self.observation_space = gym.spaces.Dict(
-            {
+        self._env = rl_bench_env
+        self.proprio = proprio
+
+        observation_space_dict = {
                 **{
                     f"image_{i}": gym.spaces.Box(
                         low=np.zeros((im_size, im_size, 3)),
                         high=255 * np.ones((im_size, im_size, 3)),
                         dtype=np.uint8,
                     )
-                    for i in ["primary", "wrist"][: len(camera_names)]
+                    for i in ["primary", "wrist"]
                 },
-                "proprio": gym.spaces.Box(
-                    low=np.ones((14,)) * -1, high=np.ones((14,)), dtype=np.float32
-                ),
             }
-        )
-        self.action_space = gym.spaces.Box(
-            low=np.ones((14,)) * -1, high=np.ones((14,)), dtype=np.float32
-        )
-        self.camera_names = camera_names
+        if proprio:
+            observation_space_dict["proprio"] = gym.spaces.Box(
+                        low=-np.infty * np.ones(7),
+                        high=np.infty * np.ones(7),
+                        dtype=np.float32,
+                    )
+
+        self.observation_space = gym.spaces.Dict(observation_space_dict)
+        self.action_space = self._env.action_space
         self._im_size = im_size
         self._rng = np.random.default_rng(seed)
 
     def step(self, action):
-        ts = self._env.step(action)
-        obs, images = self.get_obs(ts)
-        reward = ts.reward
-        info = {"images": images}
+        observation, reward, terminated, _, _ = self._env.step(action)
+        obs = self._extract_obs(observation)
 
-        if reward == self._env.task.max_reward:
+        # It assumes that reward == 1.0 means success
+        if reward == 1.0:
             self._episode_is_success = 1
 
-        return obs, reward, False, False, info
+        rendered_frame = self.render(obs)
+
+        return obs, reward, terminated, False, {"frame": rendered_frame}
+
+    def render(self, obs = None):
+        rendered_frame = self._env.render()
+
+        if rendered_frame is not None:
+
+            wrist_img = Image.fromarray(obs["image_wrist"].numpy())
+            wrist_img = wrist_img.resize((360, 360), Image.Resampling.BILINEAR)
+            resized_wrist_img = np.array(wrist_img)
+
+            return np.concatenate([rendered_frame, resized_wrist_img], axis=1)
 
     def reset(self, **kwargs):
-        # sample new box pose
-        x_range = [0.0, 0.2]
-        y_range = [0.4, 0.6]
-        z_range = [0.05, 0.05]
-        ranges = np.vstack([x_range, y_range, z_range])
-        cube_position = self._rng.uniform(ranges[:, 0], ranges[:, 1])
-        cube_quat = np.array([1, 0, 0, 0])
-        BOX_POSE[0] = np.concatenate([cube_position, cube_quat])
+        if kwargs["options"]["variation"] == -1:
+            self._env.rlbench_task_env.sample_variation()
+        else:
+            self._env.rlbench_task_env.set_variation(kwargs["options"]["variation"])
 
-        ts = self._env.reset(**kwargs)
-        obs, images = self.get_obs(ts)
-        info = {"images": images}
+        obs, info = self._env.reset(**kwargs)
+
+        obs = self._extract_obs(obs)
         self._episode_is_success = 0
+        self.language_instruction = info["text_descriptions"]
 
-        return obs, info
+        rendered_frame = self.render(obs)
 
-    def get_obs(self, ts):
-        curr_obs = {}
-        vis_images = []
+        return obs, {"frame": rendered_frame}
 
-        obs_img_names = ["primary", "wrist"]
-        for i, cam_name in enumerate(self.camera_names):
-            curr_image = ts.observation["images"][cam_name]
-            vis_images.append(copy.deepcopy(curr_image))
-            curr_image = jnp.array(curr_image)
-            curr_obs[f"image_{obs_img_names[i]}"] = curr_image
+    def _extract_obs(self, obs):
+        curr_obs = {
+            "image_primary": obs["front_rgb"],
+            "image_wrist": obs["wrist_rgb"],
+        }
+
+        if self.proprio:
+            curr_obs["proprio"] = np.concatenate([obs["joint_positions"], obs["gripper_open"]])
+
         curr_obs = dl.transforms.resize_images(
             curr_obs, match=curr_obs.keys(), size=(self._im_size, self._im_size)
         )
 
-        qpos_numpy = np.array(ts.observation["qpos"])
-        qpos = jnp.array(qpos_numpy)
-        curr_obs["proprio"] = qpos
-
-        return curr_obs, np.concatenate(vis_images, axis=-2)
+        return curr_obs
 
     def get_task(self):
         return {
-            "language_instruction": ["pick up the cube and hand it over"],
+            "language_instruction": [self.language_instruction],
         }
 
     def get_episode_metrics(self):
@@ -102,8 +124,53 @@ class AlohaGymEnv(gym.Env):
 
 # register gym environments
 gym.register(
-    "aloha-sim-cube-v0",
-    entry_point=lambda: AlohaGymEnv(
-        make_sim_env("sim_transfer_cube"), camera_names=["top"]
+    "place_shape_in_shape_sorter-vision-v0-proprio",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=True
+    ),
+)
+
+gym.register(
+    "place_shape_in_shape_sorter-vision-v0",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=False
+    ),
+)
+
+gym.register(
+    "pick_and_lift-vision-v0-proprio",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("pick_and_lift"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=True
+    ),
+)
+
+gym.register(
+    "pick_and_lift-vision-v0",
+    entry_point=lambda: RLBenchEnvAdapter(
+        RLBenchEnv(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+                   observation_mode='vision',
+                   render_mode="rgb_array",
+                   robot_setup="ur5",
+                   headless=True,
+                   action_mode=UR5ActionMode()),
+        proprio=False
     ),
 )

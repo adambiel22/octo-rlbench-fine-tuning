@@ -22,12 +22,14 @@ class RLBenchEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     def __init__(self, task_class, observation_mode='state',
-                 render_mode: Union[None, str] = None, action_mode=None):
+                 render_mode: Union[None, str] = None, action_mode=None, robot_setup: str="panda", headless: bool=True):
         self.task_class = task_class
         self.observation_mode = observation_mode
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
         obs_config = ObservationConfig()
+        obs_config.front_camera.image_size = (256, 256)
+        obs_config.wrist_camera.image_size = (256, 256)
         if observation_mode == 'state':
             obs_config.set_all_high_dim(False)
             obs_config.set_all_low_dim(True)
@@ -36,6 +38,10 @@ class RLBenchEnv(gym.Env):
         else:
             raise ValueError(
                 'Unrecognised observation_mode: %s.' % observation_mode)
+
+        if robot_setup == "ur5":
+            obs_config.gripper_touch_forces = False
+
         self.obs_config = obs_config
         if action_mode is None:
             action_mode = JointPositionActionMode()
@@ -44,7 +50,8 @@ class RLBenchEnv(gym.Env):
         self.rlbench_env = Environment(
             action_mode=self.action_mode,
             obs_config=self.obs_config,
-            headless=True,
+            headless=headless,
+            robot_setup=robot_setup
         )
         self.rlbench_env.launch()
         self.rlbench_task_env = self.rlbench_env.get_task(self.task_class)

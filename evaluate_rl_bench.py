@@ -13,21 +13,23 @@ If you are running this on a head-less server, start a virtual display:
 
 To run this script, run:
     cd examples
-    python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_aloha_checkpoint>
+    python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_octo_checkpoint>
 """
+
 from functools import partial
 import sys
 
 from absl import app, flags, logging
-import gym
+import gymnasium as gym
 import jax
+from matplotlib import pyplot as plt
 import numpy as np
 import wandb
+import random
 
-sys.path.append("path/to/your/act")
+import wandb.plot
 
-# keep this to register ALOHA sim env
-from envs.aloha_sim_env import AlohaGymEnv  # noqa
+from envs.rl_bench_env import RLBenchEnvAdapter  # noqa
 
 from octo.model.octo_model import OctoModel
 from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
@@ -38,11 +40,27 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "finetuned_path", None, "Path to finetuned Octo checkpoint directory."
 )
+flags.DEFINE_integer("action_horizon", 50, "Action horizon.")
+flags.DEFINE_integer("rollouts", 3, "Number of evaluation rollouts.")
+flags.DEFINE_enum(
+    "task",
+    "place_shape_in_shape_sorter",
+    help="Type of a task.",
+    enum_values=["place_shape_in_shape_sorter", "pick_and_lift"],
+)
+flags.DEFINE_integer(
+    "variation",
+    -1,
+    help="Variation number. A value of -1 means that the variation is randomly sampled at each simulation reset. Variation numbers start from 0.",
+)
 
 
 def main(_):
+
+    eval_config = {flag_name: FLAGS[flag_name].value for flag_name in FLAGS}
+
     # setup wandb for logging
-    wandb.init(name="eval_aloha", project="octo")
+    wandb.init(name="eval_rlbench", project="octo", config=eval_config)
 
     # load finetuned model
     logging.info("Loading finetuned model...")
@@ -62,14 +80,14 @@ def main(_):
     #     }
     #   }
     ##################################################################################################################
-    env = gym.make("aloha-sim-cube-v0")
-
-    # wrap env to normalize proprio
-    env = NormalizeProprio(env, model.dataset_statistics)
+    if "proprio" in model.config["model"]["observation_tokenizers"]:
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0-proprio")
+    else:
+        env = gym.make(f"{FLAGS['task'].value}-vision-v0")
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
-    env = RHCWrapper(env, exec_horizon=50)
+    env = RHCWrapper(env, exec_horizon=FLAGS.action_horizon)
 
     # the supply_rng wrapper supplies a new random key to sample_actions every time it's called
     policy_fn = supply_rng(
@@ -80,25 +98,30 @@ def main(_):
     )
 
     # running rollouts
-    for _ in range(3):
-        obs, info = env.reset()
+    actions_made = []
+    for _ in range(FLAGS.rollouts):
+        obs, info = env.reset(options={"variation": FLAGS["variation"].value})
 
         # create task specification --> use model utility to create task dict with correct entries
-        language_instruction = env.get_task()["language_instruction"]
-        task = model.create_tasks(texts=language_instruction)
+        language_instructions = env.get_task()["language_instruction"]
+        sampled_language_instruction = random.choice(language_instructions[0])
+        task = model.create_tasks(texts=[sampled_language_instruction])
 
-        # run rollout for 400 steps
-        images = [obs["image_primary"][0]]
+        images = [info["frame"]]
         episode_return = 0.0
-        while len(images) < 400:
+
+        while len(images) < 200:
             # model returns actions of shape [batch, pred_horizon, action_dim] -- remove batch
             actions = policy_fn(jax.tree_map(lambda x: x[None], obs), task)
             actions = actions[0]
+            actions_made.append(actions[: FLAGS.action_horizon])
+
+            print(len(images), "Action", actions)
 
             # step env -- info contains full "chunk" of observations for logging
             # obs only contains observation for final step of chunk
             obs, reward, done, trunc, info = env.step(actions)
-            images.extend([o["image_primary"][0] for o in info["observations"]])
+            images.extend([o for o in info["frame"]])
             episode_return += reward
             if done or trunc:
                 break
@@ -106,8 +129,35 @@ def main(_):
 
         # log rollout video to wandb -- subsample temporally 2x for faster logging
         wandb.log(
-            {"rollout_video": wandb.Video(np.array(images).transpose(0, 3, 1, 2)[::2])}
+            {
+                sampled_language_instruction: wandb.Video(
+                    np.array(images).transpose(0, 3, 1, 2)[::2]
+                )
+            }
         )
+
+    actions_made = np.concatenate(actions_made, axis=0)
+
+    def vis_stats(vector, tag):
+        assert len(vector.shape) == 2
+
+        vector_mean = vector.mean(0)
+        vector_std = vector.std(0)
+        vector_min = vector.min(0)
+        vector_max = vector.max(0)
+
+        n_elems = vector.shape[1]
+        fig = plt.figure(tag, figsize=(5 * n_elems, 10))
+        for elem in range(n_elems):
+            plt.subplot(1, n_elems, elem + 1)
+            plt.hist(vector[:, elem], bins=20)
+            plt.title(
+                f"mean={vector_mean[elem]}\nstd={vector_std[elem]}\nmin={vector_min[elem]}\nmax={vector_max[elem]}",
+            )
+
+        wandb.log({tag: wandb.Image(fig)})
+
+    vis_stats(actions_made, "action_stats")
 
 
 if __name__ == "__main__":
