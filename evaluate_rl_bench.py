@@ -31,9 +31,16 @@ import wandb.plot
 
 from envs.rl_bench_env import RLBenchEnvAdapter  # noqa
 
+from rlbench.utils import name_to_task_class
+from rlbench.action_modes.action_mode import MoveArmThenGripper
+from rlbench.action_modes.arm_action_modes import JointVelocity
+from rlbench.action_modes.gripper_action_modes import Discrete
+
 from octo.model.octo_model import OctoModel
 from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
 from octo.utils.train_callbacks import supply_rng
+
+from gym import RLBenchUR5Env
 
 FLAGS = flags.FLAGS
 
@@ -53,6 +60,16 @@ flags.DEFINE_integer(
     -1,
     help="Variation number. A value of -1 means that the variation is randomly sampled at each simulation reset. Variation numbers start from 0.",
 )
+
+
+class UR5ActionMode(MoveArmThenGripper):
+    def __init__(self):
+        super(UR5ActionMode, self).__init__(
+            JointVelocity(), Discrete())
+
+    def action_bounds(self):
+        """Returns the min and max of the action mode."""
+        return np.array(6 * [-1] + [0.0]), np.array(6 * [1] + [1.0])
 
 
 def main(_):
@@ -80,10 +97,25 @@ def main(_):
     #     }
     #   }
     ##################################################################################################################
-    if "proprio" in model.config["model"]["observation_tokenizers"]:
-        env = gym.make(f"{FLAGS['task'].value}-vision-v0-proprio")
-    else:
-        env = gym.make(f"{FLAGS['task'].value}-vision-v0")
+    use_proprio = "proprio" in model.config["model"]["observation_tokenizers"]
+    task_name = f"{FLAGS['task'].value}-vision-v0"
+    if use_proprio:
+        task_name = f"{task_name}-proprio"
+
+    gym.register(
+        task_name,
+        entry_point=lambda: RLBenchEnvAdapter(
+            RLBenchUR5Env(task_class=name_to_task_class("place_shape_in_shape_sorter"),
+                    observation_mode='vision',
+                    render_mode="rgb_array",
+                    robot_setup="ur5",
+                    headless=True,
+                    action_mode=UR5ActionMode()),
+            proprio=use_proprio
+        ),
+    )
+
+    env = gym.make(task_name)
 
     # add wrappers for history and "receding horizon control", i.e. action chunking
     env = HistoryWrapper(env, horizon=1)
