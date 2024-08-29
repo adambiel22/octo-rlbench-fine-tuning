@@ -12,14 +12,13 @@ from PIL import Image
 class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('7.0.0')
+    VERSION = tfds.core.Version('6.0.0')
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
       '3.0.0': 'Observation with joint positions.',
       '4.0.0': 'Pick and lift task',
       '5.0.0': 'Pick and lift task with train and val splits',
       '6.0.0': 'Pick and lift task with train and val splits and only one variation',
-      '7.0.0': 'Pick and lift task with train and val splits and only one variation. Velocity of a next step.',
     }
 
     def __init__(self, *args, **kwargs):
@@ -125,13 +124,10 @@ class RLBenchDataset(tfds.core.GeneratorBasedBuilder):
             
                 if i == len(low_dim_obs) - 1:
                     next_gripper_open = step["gripper_open"]
-                    next_joint_velocities = step["joint_velocities"]
                 else:
                     next_gripper_open = low_dim_obs[i+1]["gripper_open"]
-                    next_joint_velocities = low_dim_obs[i+1]["joint_velocities"]
 
-
-                action = np.concatenate([next_joint_velocities, [next_gripper_open]], axis=-1, dtype=np.float32)
+                action = np.concatenate([step["joint_velocities"], [next_gripper_open]], axis=-1, dtype=np.float32)
                 proprio = np.concatenate([step["joint_positions"], [step["gripper_open"]]], axis=-1, dtype=np.float32)
 
                 episode.append({

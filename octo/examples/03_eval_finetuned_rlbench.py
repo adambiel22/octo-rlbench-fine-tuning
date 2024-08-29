@@ -40,7 +40,6 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "finetuned_path", None, "Path to finetuned Octo checkpoint directory."
 )
-flags.DEFINE_integer("checkpoint_step", None, "Step of the checkpoint used for evaluation.")
 flags.DEFINE_integer("action_horizon", 50, "Action horizon.")
 flags.DEFINE_integer("rollouts", 3, "Number of evaluation rollouts.")
 flags.DEFINE_enum(
@@ -65,7 +64,7 @@ def main(_):
 
     # load finetuned model
     logging.info("Loading finetuned model...")
-    model = OctoModel.load_pretrained(FLAGS.finetuned_path, step=FLAGS.checkpoint_step)
+    model = OctoModel.load_pretrained(FLAGS.finetuned_path)
 
     # make gym environment
     ##################################################################################################################

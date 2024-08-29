@@ -9,7 +9,6 @@ python examples/02_finetune_new_observation_action.py --pretrained_path=hf://rai
 from absl import app, flags, logging
 import flax
 import jax
-import jax.numpy as jnp
 import optax
 import tensorflow as tf
 import tqdm
@@ -65,7 +64,7 @@ def main(_):
     # delete goal images in the data loader since we will train a language-conditioned-only policy
     # TODO: directly load this from raw data to make it less opaque?
     logging.info("Loading finetuning dataset...")
-    train_dataset = make_single_dataset(
+    dataset = make_single_dataset(
         dataset_kwargs=dict(
             name="rl_bench_dataset",
             data_dir=FLAGS.data_dir,
@@ -83,33 +82,7 @@ def main(_):
         train=True,
     )
     train_data_iter = (
-        train_dataset.repeat()
-        .unbatch()
-        .shuffle(10000)  # can reduce this if RAM consumption too high
-        .batch(FLAGS.batch_size)
-        .iterator()
-    )
-
-    logging.info("Loading validation dataset...")  # Load validation dataset
-    val_dataset = make_single_dataset(
-        dataset_kwargs=dict(
-            name="rl_bench_dataset",
-            data_dir=FLAGS.data_dir,
-            image_obs_keys={"primary": "image", "wrist": "wrist_image"},
-            proprio_obs_key="proprio",
-            language_key="language_instruction",
-        ),
-        traj_transform_kwargs=dict(
-            window_size=1,
-            action_horizon=50,
-        ),
-        frame_transform_kwargs=dict(
-            resize_size={"primary": (256, 256), "wrist": (256, 256)},
-        ),
-        train=False,
-    )
-    val_data_iter = (
-        val_dataset.repeat()
+        dataset.repeat()
         .unbatch()
         .shuffle(10000)  # can reduce this if RAM consumption too high
         .batch(FLAGS.batch_size)
@@ -125,7 +98,6 @@ def main(_):
         return batch
 
     train_data_iter = map(process_batch, train_data_iter)
-    val_data_iter = map(process_batch, val_data_iter)
     example_batch = next(train_data_iter)
 
     # load pre-training config and modify
@@ -157,7 +129,7 @@ def main(_):
         example_batch,
         text_processor,
         verbose=True,
-        dataset_statistics=train_dataset.dataset_statistics,
+        dataset_statistics=dataset.dataset_statistics,
     )
     merged_params = merge_params(model.params, pretrained_model.params)
     # can perform any additional parameter surgery here...
@@ -197,7 +169,6 @@ def main(_):
             batch["action_pad_mask"],
             train=train,
         )
-
         return action_loss, action_metrics
 
     @jax.jit
@@ -207,29 +178,7 @@ def main(_):
             state.model.params, batch, dropout_rng, train=True
         )
         new_state = state.apply_gradients(grads=grads, rng=rng)
-
-        joint_positions_mse = jnp.square(info["delta"][:, :, :, :-1]).mean()
-        gripper_open_mse = jnp.square(info["delta"][:, :, :, -1]).mean()
-        
-        info["joint_positions_mse"] = joint_positions_mse
-        info["gripper_open_mse"] = gripper_open_mse
-        del info["delta"]
-
         return new_state, info
-    
-    @jax.jit
-    def val_step(state, batch):  # Validation step
-        rng, dropout_rng = jax.random.split(state.rng)
-        loss, info = loss_fn(state.model.params, batch, dropout_rng, train=False)
-
-        joint_positions_mse = jnp.square(info["delta"][:, :, :, :-1]).mean()
-        gripper_open_mse = jnp.square(info["delta"][:, :, :, -1]).mean()
-        
-        info["joint_positions_mse"] = joint_positions_mse
-        info["gripper_open_mse"] = gripper_open_mse
-        del info["delta"]
-
-        return info
 
     # run finetuning loop
     logging.info("Starting finetuning...")
@@ -242,15 +191,6 @@ def main(_):
                 flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
                 step=i,
             )
-
-            val_batch = next(val_data_iter)
-            val_info = val_step(train_state, val_batch)
-            val_info = jax.device_get(val_info)
-            wandb.log(
-                flax.traverse_util.flatten_dict({"validation": val_info}, sep="/"),
-                step=i,
-            )
-
         if (i + 1) % 1000 == 0:
             # save checkpoint
             train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)

@@ -85,7 +85,6 @@ def continuous_loss(
     return loss, {
         "loss": loss,
         "mse": mse,
-        "delta": pred_value - ground_truth_value
     }
 
 
