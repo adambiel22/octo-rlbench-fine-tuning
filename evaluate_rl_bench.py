@@ -42,6 +42,9 @@ from octo.utils.train_callbacks import supply_rng
 
 from gym import RLBenchUR5Env
 
+
+from rlbench_dataset_builder.action_modes import UR5ActionMode
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
@@ -60,16 +63,6 @@ flags.DEFINE_integer(
     -1,
     help="Variation number. A value of -1 means that the variation is randomly sampled at each simulation reset. Variation numbers start from 0.",
 )
-
-
-class UR5ActionMode(MoveArmThenGripper):
-    def __init__(self):
-        super(UR5ActionMode, self).__init__(
-            JointVelocity(), Discrete())
-
-    def action_bounds(self):
-        """Returns the min and max of the action mode."""
-        return np.array(6 * [-1] + [0.0]), np.array(6 * [1] + [1.0])
 
 
 def main(_):
