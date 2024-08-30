@@ -1,3 +1,4 @@
+# test
 """
 This script demonstrates how to finetune Octo to a new observation space (single camera + proprio)
 and new action space (bimanual) using a simulated ALOHA cube handover dataset (https://tonyzhaozh.github.io/aloha/).
