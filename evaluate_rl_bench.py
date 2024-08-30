@@ -32,9 +32,6 @@ import wandb.plot
 from envs.rl_bench_env import RLBenchEnvAdapter  # noqa
 
 from rlbench.utils import name_to_task_class
-from rlbench.action_modes.action_mode import MoveArmThenGripper
-from rlbench.action_modes.arm_action_modes import JointVelocity
-from rlbench.action_modes.gripper_action_modes import Discrete
 
 from octo.model.octo_model import OctoModel
 from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
@@ -43,7 +40,7 @@ from octo.utils.train_callbacks import supply_rng
 from gym import RLBenchUR5Env
 
 
-from rlbench_dataset_builder.action_modes import UR5ActionMode
+from rlbench_dataset_builder.rlbench_dataset.action_modes import UR5ActionMode
 
 FLAGS = flags.FLAGS
 
