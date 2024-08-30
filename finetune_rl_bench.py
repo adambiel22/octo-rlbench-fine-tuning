@@ -207,28 +207,12 @@ def main(_):
             state.model.params, batch, dropout_rng, train=True
         )
         new_state = state.apply_gradients(grads=grads, rng=rng)
-
-        joint_positions_mse = jnp.square(info["delta"][:, :, :, :-1]).mean()
-        gripper_open_mse = jnp.square(info["delta"][:, :, :, -1]).mean()
-        
-        info["joint_positions_mse"] = joint_positions_mse
-        info["gripper_open_mse"] = gripper_open_mse
-        del info["delta"]
-
         return new_state, info
     
     @jax.jit
     def val_step(state, batch):  # Validation step
-        rng, dropout_rng = jax.random.split(state.rng)
-        loss, info = loss_fn(state.model.params, batch, dropout_rng, train=False)
-
-        joint_positions_mse = jnp.square(info["delta"][:, :, :, :-1]).mean()
-        gripper_open_mse = jnp.square(info["delta"][:, :, :, -1]).mean()
-        
-        info["joint_positions_mse"] = joint_positions_mse
-        info["gripper_open_mse"] = gripper_open_mse
-        del info["delta"]
-
+        _, dropout_rng = jax.random.split(state.rng)
+        _, info = loss_fn(state.model.params, batch, dropout_rng, train=False)
         return info
 
     # run finetuning loop
